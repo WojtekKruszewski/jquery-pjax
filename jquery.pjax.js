@@ -218,38 +218,7 @@ function pjax(options) {
     fire('pjax:end', [xhr, options])
   }
 
-  options.error = function(xhr, textStatus, errorThrown) {
-    var container = extractContainer("", xhr, options)
-
-    var allowed = fire('pjax:error', [xhr, textStatus, errorThrown, options])
-    if (options.type == 'GET' && textStatus !== 'abort' && allowed) {
-      locationReplace(container.url)
-    }
-  }
-
-  options.success = function(data, status, xhr) {
-    // If $.pjax.defaults.version is a function, invoke it first.
-    // Otherwise it can be a static string.
-    var currentVersion = (typeof $.pjax.defaults.version === 'function') ?
-      $.pjax.defaults.version() :
-      $.pjax.defaults.version
-
-    var latestVersion = xhr.getResponseHeader('X-PJAX-Version')
-
-    var container = extractContainer(data, xhr, options)
-
-    // If there is a layout version mismatch, hard load the new url
-    if (currentVersion && latestVersion && currentVersion !== latestVersion) {
-      locationReplace(container.url)
-      return
-    }
-
-    // If the new response is missing a body, hard load the page
-    if (!container.contents) {
-      locationReplace(container.url)
-      return
-    }
-
+  options.replacePage = function(container) {
     pjax.state = {
       id: options.id || uniqueId(),
       url: container.url,
@@ -288,6 +257,43 @@ function pjax(options) {
       var target = $(url.hash)
       if (target.length) $(window).scrollTop(target.offset().top)
     }
+  }
+
+  options.error = function(xhr, textStatus, errorThrown) {
+    var allowed = fire('pjax:error', [xhr, textStatus, errorThrown, options])
+
+    var container = extractContainer(xhr.responseText, xhr, options)
+    if (container.contents) {
+      options.replacePage(container);
+    } else if (options.type == 'GET' && textStatus !== 'abort' && allowed) {
+      locationReplace(container.url)
+    }
+  }
+
+  options.success = function(data, status, xhr) {
+    // If $.pjax.defaults.version is a function, invoke it first.
+    // Otherwise it can be a static string.
+    var currentVersion = (typeof $.pjax.defaults.version === 'function') ?
+      $.pjax.defaults.version() :
+      $.pjax.defaults.version
+
+    var latestVersion = xhr.getResponseHeader('X-PJAX-Version')
+
+    var container = extractContainer(data, xhr, options)
+
+    // If there is a layout version mismatch, hard load the new url
+    if (currentVersion && latestVersion && currentVersion !== latestVersion) {
+      locationReplace(container.url)
+      return
+    }
+
+    // If the new response is missing a body, hard load the page
+    if (!container.contents) {
+      locationReplace(container.url)
+      return
+    }
+
+    options.replacePage(container);
 
     fire('pjax:success', [data, status, xhr, options])
   }
